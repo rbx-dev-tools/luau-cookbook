@@ -1,0 +1,2 @@
+# The tools run under Lune, not in a Roblox place, so they get a different std.
+std = "lune"

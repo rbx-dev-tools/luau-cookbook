@@ -1,0 +1,22 @@
+{
+  "emitLegacyScripts": false,
+  "name": "luau-cookbook-harness",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$ignoreUnknownInstances": true,
+      "Libraries": {
+        "$className": "Folder",
+        "RemoteTypes": {
+          "$path": "../remotes/game/RemoteTypes.luau"
+        }
+      },
+      "Examples": {
+        "$className": "Folder",
+        "Remotes": {
+          "$path": "../remotes/examples"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+std = "roblox"
+
+exclude = [
+  "globalTypes.d.luau",
+  "**/tools/**",
+]
+
+[lints]
+mixed_table = "allow"

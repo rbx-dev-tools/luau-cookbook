@@ -1,0 +1,5 @@
+# Fetched by `just globaltypes`, 16k generated lines with no business in git
+globalTypes.d.luau
+
+# Derived from .harness/default.project.json by `just sourcemap`
+sourcemap.json
