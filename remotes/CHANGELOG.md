@@ -23,3 +23,8 @@ First entry in the cookbook, lifted from the project it grew in.
   against an unrelated tree and, with defaults, against the original one.
 - The generated barrel header no longer names a path or a task runner that only
   existed in the source project.
+- `--schema-suffix` added, defaulting to the previous fixed `RemotesSchema.luau`.
+  It is validated to end in `Schema.luau`, which keeps directory scanning and
+  barrel naming from disagreeing. Before this, a declaration named
+  `CombatNetSchema.luau` was invisible to a directory scan but generated
+  correctly when pointed at directly.

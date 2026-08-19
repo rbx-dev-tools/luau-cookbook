@@ -92,14 +92,28 @@ lune run tools/generate.luau -- Shop --features-root modules --instances Net
 |---|---|---|
 | `--instances <name>` | `Remotes` | Folder for the generated instance files, next to the declaration |
 | `--features-root <dir>` | `features` | Where a bare `FeatureName` argument is looked up |
+| `--schema-suffix <s>` | `RemotesSchema.luau` | Filename suffix that marks a declaration when scanning a directory. Must end in `Schema.luau` |
 | `--prune` | off | Delete instance files the declaration no longer names |
 | `--dry` | off | Print what would happen, write nothing |
 
-Two things are fixed rather than configurable: the `*RemotesSchema.luau`
-filename suffix and the `export type Remotes` name. They are what makes a
-declaration findable at all, so making them options would only move the
-convention somewhere less visible. Everything about *where* files live is an
-option, which is what lets this run against a tree it did not grow in.
+One thing is fixed rather than configurable: the `export type Remotes` name,
+which is what makes a declaration readable at all.
+
+The generated module's name is not an option either, but for a different
+reason. It is the declaration's name with the trailing `Schema` dropped, so
+`CombatNetSchema.luau` produces `CombatNet.luau`. You choose it by naming your
+declaration, and the two files sit side by side with names that answer each
+other, rather than through a mapping kept somewhere else.
+
+Both the barrel and the instances folder are written next to the declaration.
+`--instances` renames that folder, it does not relocate it; there is currently
+no way to collect every remote into one global folder.
+
+`--schema-suffix` must end in `Schema.luau`, and that is checked. Finding a
+declaration and naming its barrel are two rules that have to agree, and an
+unchecked suffix lets them drift: a file the directory scan skips still
+generates fine when pointed at directly, which is a confusing way to discover a
+typo.
 
 From a declaration it writes, and overwrites whole, one `.model.json` per
 remote with the class the payload type implies, plus the barrel module your

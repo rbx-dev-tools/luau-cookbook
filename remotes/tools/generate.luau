@@ -12,6 +12,10 @@
 --                           declaration (default: Remotes)
 --   --features-root <dir>   where a bare FeatureName is looked up
 --                           (default: features)
+--   --schema-suffix <s>     filename suffix that marks a declaration when
+--                           scanning a directory (default: RemotesSchema.luau).
+--                           Must end in "Schema.luau", because the barrel is
+--                           named by dropping that word.
 --
 -- `CurrencyRemotesSchema.luau` is written by hand and holds `export type Remotes`.
 -- From it this writes:
@@ -32,10 +36,15 @@
 -- the same type as `Instance & {...}` in an invariant position). So a payload
 -- type is written exactly once.
 --
--- What is convention here and what is configurable: the `*RemotesSchema.luau`
--- suffix and the `export type Remotes` name are fixed, because they are what
--- makes a declaration findable at all. Everything about WHERE things live is an
--- option, so this runs against a tree it did not grow in.
+-- What is convention here and what is configurable: `export type Remotes` is
+-- fixed, because it is what makes a declaration readable at all. The filename
+-- suffix has a default rather than being fixed, and everything about WHERE
+-- things live is an option, so this runs against a tree it did not grow in.
+--
+-- The suffix is checked to end in "Schema.luau" rather than being free. Finding
+-- a declaration and naming its barrel are two rules that have to agree, and an
+-- unchecked suffix lets them drift: a file the scan skips still generates fine
+-- when pointed at directly, which is a confusing way to learn about a typo.
 
 local fs = require("@lune/fs")
 local log = require("./lib/log")
@@ -52,9 +61,10 @@ local dry = false
 -- project using that layout passes nothing.
 local instancesFolder = "Remotes"
 local featuresRoot = "features"
+local schemaSuffix = "RemotesSchema.luau"
 
 local USAGE = "usage: lune run generate.luau -- <XRemotesSchema.luau | directory | FeatureName> "
-    .. "[--prune] [--dry] [--instances <name>] [--features-root <dir>]"
+    .. "[--prune] [--dry] [--instances <name>] [--features-root <dir>] [--schema-suffix <s>]"
 
 local i = 1
 while i <= #process.args do
@@ -81,6 +91,8 @@ while i <= #process.args do
         instancesFolder = value()
     elseif arg == "--features-root" then
         featuresRoot = value()
+    elseif arg == "--schema-suffix" then
+        schemaSuffix = value()
     elseif arg == "--" then
         -- separator from `just`, ignore
     elseif string.sub(arg, 1, 2) == "--" then
@@ -96,6 +108,13 @@ end
 
 if target == nil then
     log.err(USAGE)
+    process.exit(1)
+end
+
+-- The barrel drops a trailing "Schema" from the declaration's name, so a suffix
+-- that does not end in one would make the scan and the naming disagree.
+if string.sub(schemaSuffix, -#"Schema.luau") ~= "Schema.luau" then
+    log.err(`--schema-suffix must end in "Schema.luau", got "{schemaSuffix}"`)
     process.exit(1)
 end
 
@@ -230,7 +249,7 @@ local function findSchemas(root: string, into: { string })
         local path = `{root}/{entry}`
         if fs.metadata(path).kind == "dir" then
             findSchemas(path, into)
-        elseif string.match(entry, "RemotesSchema%.luau$") then
+        elseif #entry > #schemaSuffix and string.sub(entry, -#schemaSuffix) == schemaSuffix then
             table.insert(into, path)
         end
     end

@@ -49,3 +49,12 @@ entry whose documentation has started lying.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Trademark
+
+Luau is a trademark of Roblox Corporation.
+
+This is an independent project. It is not affiliated with, endorsed by, or
+sponsored by Roblox or the Luau team. The name is used descriptively, to say
+what the modules here are written in. See the [Luau brand
+guidelines](https://luau.org/brand).
