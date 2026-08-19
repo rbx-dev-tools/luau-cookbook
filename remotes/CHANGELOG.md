@@ -16,5 +16,10 @@ First entry in the cookbook, lifted from the project it grew in.
   used in. The mirror is deliberately absent until something needs it.
 - Bidirectional `RemoteEvent` and `UnreliableRemoteEvent` are kept, marked as
   the rare case: two one-way remotes usually say more.
-- `tools/generate.luau` included as-is. It still assumes the layout of the
-  project it came from and is not yet runnable against an arbitrary tree.
+- `tools/generate.luau` decoupled from the layout it grew in. The instances
+  folder and the root a bare feature name resolves against are now
+  `--instances` and `--features-root`, defaulting to the previous hardcoded
+  values, so an existing project passes nothing and behaves as before. Verified
+  against an unrelated tree and, with defaults, against the original one.
+- The generated barrel header no longer names a path or a task runner that only
+  existed in the source project.

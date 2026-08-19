@@ -83,12 +83,23 @@ out has exactly the promised fields and nothing the client smuggled in.
 
 ## Using the generator
 
-> **Status: not yet decoupled.** `tools/generate.luau` is lifted unchanged from
-> the project it grew in. It still assumes that layout: features under
-> `features/<Name>/Shared/`, `@game/...` require aliases, and a declaration
-> file named `<Name>RemotesSchema.luau`. It will not run against an arbitrary
-> tree yet. Turning those assumptions into command-line options is the next
-> piece of work on this entry.
+```sh
+lune run tools/generate.luau -- path/to/ShopRemotesSchema.luau
+lune run tools/generate.luau -- Shop --features-root modules --instances Net
+```
+
+| Option | Default | What it is |
+|---|---|---|
+| `--instances <name>` | `Remotes` | Folder for the generated instance files, next to the declaration |
+| `--features-root <dir>` | `features` | Where a bare `FeatureName` argument is looked up |
+| `--prune` | off | Delete instance files the declaration no longer names |
+| `--dry` | off | Print what would happen, write nothing |
+
+Two things are fixed rather than configurable: the `*RemotesSchema.luau`
+filename suffix and the `export type Remotes` name. They are what makes a
+declaration findable at all, so making them options would only move the
+convention somewhere less visible. Everything about *where* files live is an
+option, which is what lets this run against a tree it did not grow in.
 
 From a declaration it writes, and overwrites whole, one `.model.json` per
 remote with the class the payload type implies, plus the barrel module your
