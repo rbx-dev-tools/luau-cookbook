@@ -4,6 +4,37 @@ Type shims for Roblox remotes that keep untrusted input untrusted, and a
 generator that writes the instance files and the lookup barrel from a single
 declaration.
 
+You declare your remotes once, in ordinary Luau:
+
+```lua
+export type Remotes = {
+    BuyItem: RemoteTypes.ToServer<string, number>,
+    StockChanged: RemoteTypes.ToClient<number>,
+}
+```
+
+A generator turns that into the instance files and a barrel module, so this is
+all you edit. Then:
+
+```lua
+-- Client: fully typed, because what you send is yours.
+Remotes.BuyItem:FireServer("sword", 1)
+
+-- Server: `...unknown`, because what arrived is not. The guard is not optional
+-- here -- without it, `itemId` does not compile.
+Remotes.BuyItem.OnServerEvent:Connect(function(player, itemId, quantity)
+    if typeof(itemId) ~= "string" or typeof(quantity) ~= "number" then
+        return
+    end
+end)
+```
+
+`BuyItem` is a `ToServer`, so it has no `FireClient` and no `OnClientEvent`.
+Using it the wrong way round stops compiling instead of silently connecting to
+something that will never fire.
+
+That is the whole of it. The rest of this page is why.
+
 ## The idea
 
 A remote is the one place in a Roblox codebase where data arrives from a

@@ -5,6 +5,11 @@ why there are no version numbers.
 
 ## 2026-08-20
 
+- The entry README opens with code. It opened with twenty-eight lines of
+  argument, and the first line of code was three screens down: a reader had to
+  take the reasoning on trust before seeing what using it looks like. The why is
+  unchanged, it just no longer comes first.
+
 - `--prune` rebuilt on a complete inventory. It deleted what the declarations of
   the *run* did not name, which is not the same set as what no declaration names
   the moment one folder has two declarations feeding it -- and that is the
