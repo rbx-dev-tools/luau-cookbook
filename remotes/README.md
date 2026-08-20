@@ -89,6 +89,98 @@ scalars, and for tables a validator with the honest signature
 `(unknown) -> T?` that rebuilds the value rather than casting it, so what comes
 out has exactly the promised fields and nothing the client smuggled in.
 
+## From declaration to use
+
+The whole cycle, on one feature. You write one file; the generator writes the
+other three.
+
+```
+features/Shop/
+    ShopRemotesSchema.luau      <- you write this, and only this
+```
+
+```lua
+local RemoteTypes = require(ReplicatedStorage.Libraries.RemoteTypes)
+
+export type Remotes = {
+    BuyItem: RemoteTypes.ToServer<string, number>,
+    StockChanged: RemoteTypes.ToClient<number>,
+    GetBalance: RemoteTypes.RemoteFunction<(), number>,
+}
+
+return {}
+```
+
+```sh
+lune run tools/generate.luau -- Shop
+```
+
+```
+-> reading 1 schema
+   wrote features/Shop/Remotes/BuyItem.model.json
+   wrote features/Shop/Remotes/StockChanged.model.json
+   wrote features/Shop/Remotes/GetBalance.model.json
+   wrote features/Shop/ShopRemotes.luau
+```
+
+```
+features/Shop/
+    ShopRemotesSchema.luau      you
+    ShopRemotes.luau            generated -- the barrel your code requires
+    Remotes/
+        BuyItem.model.json      generated -- Rojo builds the instances from these
+        StockChanged.model.json
+        GetBalance.model.json
+```
+
+Each `.model.json` is one line of intent, the class the payload type implies —
+`ToServer` and `ToClient` both mean `RemoteEvent`, since direction is a fact
+about the type and not about the instance:
+
+```json
+{
+  "className": "RemoteEvent"
+}
+```
+
+And the barrel, overwritten whole every run:
+
+```lua
+-- Generated from ShopRemotesSchema.luau by luau-cookbook/remotes -- do not edit.
+--
+-- Add or remove a remote in ShopRemotesSchema.luau, then re-run the generator.
+
+local ShopRemotesSchema = require(script.Parent.ShopRemotesSchema)
+
+local remotes: ShopRemotesSchema.Remotes = {
+    BuyItem = script.Parent.Remotes.BuyItem :: any,
+    StockChanged = script.Parent.Remotes.StockChanged :: any,
+    GetBalance = script.Parent.Remotes.GetBalance :: any,
+}
+
+return remotes
+```
+
+Then you require the barrel and never think about instances again:
+
+```lua
+local Remotes = require(ReplicatedStorage.Features.Shop.ShopRemotes)
+
+-- Client. Fully typed, because what you send is yours.
+Remotes.BuyItem:FireServer("sword", 1)
+
+-- Server. `...unknown`, because what arrived is not.
+Remotes.BuyItem.OnServerEvent:Connect(function(player, itemId, quantity)
+    if typeof(itemId) ~= "string" or typeof(quantity) ~= "number" then
+        return
+    end
+    print(`{player.Name} bought {quantity} x {itemId}`)
+end)
+```
+
+Add a remote by adding a line to the declaration and re-running. Remove one the
+same way, with `--prune` to delete the instance file it leaves behind.
+
 ## Using the generator
 
 The argument says what to read, in one of three forms.

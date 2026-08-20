@@ -1,12 +1,24 @@
---> What `unknown` on the server side costs, and how to get real types back.
+--> Not a usage example. The claim sheet for what `unknown` costs on the server.
 --
--- Nothing here runs -- no script requires this module. `just check` typechecks
--- it, and that is what makes it a test rather than a note: if a claim below
--- stops being true, the check fails.
+-- If you came here to see how the entry is used -- declaring remotes, running
+-- the generator, requiring the barrel -- that is in ../README.md, under "From
+-- declaration to use". This file is the other half: every assertion the entry
+-- makes, written so that `just check` fails when one stops being true.
 --
--- The remote types are redeclared locally so this file stands on its own, but
--- they are game/RemoteTypes.luau's, with the two lines marked CHANGE. Copy those two
--- lines over when you want the real thing.
+-- Two things here would be wrong in real code, and are deliberate:
+--
+--   * The types are redeclared below instead of required. `just check` cannot
+--     resolve a require across modules in this repo, so an example that
+--     required anything could not be checked at all. They are game/
+--     RemoteTypes.luau's, trimmed to the members these claims exercise, with
+--     the two lines marked CHANGE.
+--
+--   * `(nil :: any) :: T` stands in for an instance. Real code gets the same
+--     cast from the generated barrel and never writes one.
+--
+-- The bidirectional `RemoteEvent` is used below where one remote has to be
+-- read from both sides in a single file. The entry recommends the one-way
+-- ToClient and ToServer; section 6 has the claim that proves why.
 
 -- 1. The types ---------------------------------------------------------------
 
