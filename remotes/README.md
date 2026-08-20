@@ -91,11 +91,36 @@ out has exactly the promised fields and nothing the client smuggled in.
 
 ## Using the generator
 
+The argument says what to read, in one of three forms.
+
+| Argument | Reads |
+|---|---|
+| `path/to/ShopRemotesSchema.luau` | that one declaration |
+| a directory | every declaration under it, at any depth |
+| `Shop` | `features/Shop`, or whatever `--features-root` points at |
+
+A directory is how you regenerate in bulk — `features` for every feature, `.`
+for the whole tree, `src/shared` for one corner of it. What counts as a
+declaration when scanning is the filename suffix, `RemotesSchema.luau` unless
+`--schema-suffix` says otherwise; a file the scan skips still generates when
+pointed at directly, which is the confusing case that suffix rule exists to
+prevent.
+
+A bare name is only tried once the argument has failed to be a real path, so a
+directory named like a feature always wins and no layout assumption can shadow
+one.
+
 ```sh
 lune run tools/generate.luau -- path/to/ShopRemotesSchema.luau
+lune run tools/generate.luau -- features                        # every feature
+lune run tools/generate.luau -- . --dry                         # the whole tree, no writes
 lune run tools/generate.luau -- Shop --features-root modules --instances Net
 lune run tools/generate.luau -- features --instances-dir shared/Remotes --instances-path ReplicatedStorage.Remotes
 ```
+
+Run it over a directory rather than file by file whenever you can: `--prune`
+only deletes what no declaration of the run names, so the wider the run, the
+better it knows what is really an orphan.
 
 | Option | Default | What it is |
 |---|---|---|
