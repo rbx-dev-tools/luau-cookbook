@@ -86,34 +86,70 @@ out has exactly the promised fields and nothing the client smuggled in.
 ```sh
 lune run tools/generate.luau -- path/to/ShopRemotesSchema.luau
 lune run tools/generate.luau -- Shop --features-root modules --instances Net
+lune run tools/generate.luau -- features --instances-dir shared/Remotes --instances-path ReplicatedStorage.Remotes
 ```
 
 | Option | Default | What it is |
 |---|---|---|
 | `--instances <name>` | `Remotes` | Folder for the generated instance files, next to the declaration |
+| `--instances-dir <path>` | next to the declaration | Where the instance files go, when that is not next to the declaration. Overrides `--instances` |
+| `--instances-path <expr>` | `script.Parent.<instances>` | How the barrel reaches them in the datamodel. A leading service name is resolved with `GetService` |
 | `--features-root <dir>` | `features` | Where a bare `FeatureName` argument is looked up |
-| `--schema-suffix <s>` | `RemotesSchema.luau` | Filename suffix that marks a declaration when scanning a directory. Must end in `Schema.luau` |
-| `--prune` | off | Delete instance files the declaration no longer names |
+| `--schema-suffix <s>` | `RemotesSchema.luau` | Filename suffix that marks a declaration when scanning a directory. Must end in `Schema.luau` unless `--barrel` is given |
+| `--barrel <name>` | derived | Name the generated module outright. One declaration at a time |
+| `--prune` | off | Delete instance files no declaration of the run names |
 | `--dry` | off | Print what would happen, write nothing |
 
 One thing is fixed rather than configurable: the `export type Remotes` name,
 which is what makes a declaration readable at all.
 
-The generated module's name is not an option either, but for a different
-reason. It is the declaration's name with the trailing `Schema` dropped, so
-`CombatNetSchema.luau` produces `CombatNet.luau`. You choose it by naming your
-declaration, and the two files sit side by side with names that answer each
-other, rather than through a mapping kept somewhere else.
-
-Both the barrel and the instances folder are written next to the declaration.
-`--instances` renames that folder, it does not relocate it; there is currently
-no way to collect every remote into one global folder.
+The generated module's name is derived by default: the declaration's name with
+the trailing `Schema` dropped, so `CombatNetSchema.luau` produces
+`CombatNet.luau`. The two files then sit side by side with names that answer
+each other, rather than through a mapping kept somewhere else. `--barrel` names
+it outright when that is not what you want, and takes one declaration at a time
+— pointed at a directory, every barrel would be written over the same file.
 
 `--schema-suffix` must end in `Schema.luau`, and that is checked. Finding a
 declaration and naming its barrel are two rules that have to agree, and an
 unchecked suffix lets them drift: a file the directory scan skips still
 generates fine when pointed at directly, which is a confusing way to discover a
-typo.
+typo. With `--barrel`, nothing is derived and the rule has nothing left to
+protect, so it is not enforced.
+
+## Putting the remotes somewhere shared
+
+Where things live is two questions, not one. `--instances-dir` is a path on
+disk; `--instances-path` is a path in the datamodel. Rojo decides how the first
+maps to the second, and it can map them any way it likes, so neither can be
+derived from the other — which is why one option cannot do both, and why
+`--instances-dir` on its own warns rather than guessing.
+
+```sh
+lune run tools/generate.luau -- features     --instances-dir src/shared/Remotes     --instances-path ReplicatedStorage.Remotes
+```
+
+Every declaration under `features/` then writes its instances into one folder,
+and each barrel opens with the service it needs:
+
+```lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local remotes: ShopRemotesSchema.Remotes = {
+    BuyItem = ReplicatedStorage.Remotes.BuyItem :: any,
+}
+```
+
+Remote names become global once the folder is, so two features cannot both
+declare `Ping`. Nothing detects the collision: the second declaration simply
+generates the same file.
+
+`--prune` deletes what **no** declaration of the run names, which is why it
+reads every schema before deleting anything. Pruning one declaration into a
+shared folder would delete the others' instances, so with `--instances-dir` it
+requires a directory target and refuses a single file. For the same reason, a
+single declaration read into a shared folder reports no orphans at all: that run
+does not know what the rest of the folder is for.
 
 From a declaration it writes, and overwrites whole, one `.model.json` per
 remote with the class the payload type implies, plus the barrel module your

@@ -12,7 +12,7 @@ globaltypes:
 
 # Regenerate the harness sourcemap (luau-lsp needs it to resolve @game/... requires)
 sourcemap:
-    rojo sourcemap .harness/default.project.json --output sourcemap.json
+    rojo sourcemap .harness/default.project.json --include-non-scripts --output sourcemap.json
 
 # Typecheck, lint, format check -- the entire safety net of this repo
 #
