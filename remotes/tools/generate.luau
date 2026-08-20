@@ -6,60 +6,30 @@
 --   lune run generate.luau -- <FeatureName>    (resolved under --features-root)
 --
 -- Options:
---   --prune                 delete instance files the schema no longer names
+--   --prune                 delete instance files no declaration of the run names
 --   --dry                   print what would happen, write nothing
---   --instances <name>      folder for the generated instances, next to the
---                           declaration (default: Remotes)
---   --instances-dir <path>  where the instance files go, when that is not next
---                           to the declaration. Overrides --instances.
---   --instances-path <expr> how the barrel reaches them in the datamodel
---                           (default: script.Parent.<instances>). A leading
---                           service name is resolved with GetService.
---   --features-root <dir>   where a bare FeatureName is looked up
---                           (default: features)
---   --schema-suffix <s>     filename suffix that marks a declaration when
---                           scanning a directory (default: RemotesSchema.luau).
---                           Must end in "Schema.luau", because the barrel is
---                           named by dropping that word -- unless --barrel
---                           names it outright.
---   --barrel <name>         name the generated module instead of deriving it.
---                           Single declaration only: a directory would write
---                           every barrel over the same file.
+--   --instances <name>      instances folder next to the declaration (Remotes)
+--   --instances-dir <path>  put the instance files here instead
+--   --instances-path <expr> how the barrel reaches them (script.Parent.<instances>)
+--   --features-root <dir>   where a bare FeatureName is looked up (features)
+--   --schema-suffix <s>     what marks a declaration (RemotesSchema.luau)
+--   --barrel <name>         name the module instead of deriving it
+--
+-- Each option's constraints are enforced below with an error that says what it
+-- wanted; ../README.md says why they exist.
 --
 -- `CurrencyRemotesSchema.luau` is written by hand and holds `export type Remotes`.
 -- From it this writes:
 --
 --   * <dir>/<instances>/<Name>.model.json   with the className the type implies
---   * <dir>/CurrencyRemotes.luau            the barrel, in full
+--   * CurrencyRemotes.luau                  the barrel, overwritten whole
 --
--- Blink's arrangement without the DSL: a declaration nobody generates, and
--- output nobody edits. The barrel is overwritten whole, so there is no marked
--- region to respect and no way to lose hand-written work inside it -- an
--- earlier version spliced a block into the declaration file itself, which mixed
--- the two.
+-- Overwritten whole, so there is no marked region to respect and no
+-- hand-written work to lose inside them.
 --
--- The barrel names no payload type. It annotates its table with `Remotes` and
--- casts each instance to `any`; the annotation is what makes a remote missing
--- from the barrel an error, and `any` is what gets past the invariance of table
--- properties (the sourcemap types the instance as `RemoteEvent`, which is not
--- the same type as `Instance & {...}` in an invariant position). So a payload
--- type is written exactly once.
---
--- What is convention here and what is configurable: `export type Remotes` is
--- fixed, because it is what makes a declaration readable at all. The filename
--- suffix has a default rather than being fixed, and everything about WHERE
--- things live is an option, so this runs against a tree it did not grow in.
---
--- Where things live is two questions, not one, and an early version answered
--- them with a single option because the two coincide when everything is a
--- sibling. `--instances-dir` is a filesystem path; `--instances-path` is a
--- datamodel path. Rojo decides how one maps to the other, and it can map them
--- any way it likes, so nothing here can derive the second from the first.
---
--- The suffix is checked to end in "Schema.luau" rather than being free. Finding
--- a declaration and naming its barrel are two rules that have to agree, and an
--- unchecked suffix lets them drift: a file the scan skips still generates fine
--- when pointed at directly, which is a confusing way to learn about a typo.
+-- Why any of this is shaped the way it is -- the two path options, the suffix
+-- rule, the `any` cast in the barrel -- is in ../README.md. It is not repeated
+-- here, because two copies of an explanation drift.
 
 local fs = require("@lune/fs")
 local log = require("./lib/log")

@@ -4,44 +4,19 @@
 -- version over one you have modified.
 
 -- Derived from the `typed-remote` module of RbxUtil, MIT, (c) 2025 Stephen
--- Leitnick -- https://github.com/Sleitnick/RbxUtil. The Signal and PlayerSignal
--- shapes and the structural approach are his; the `...unknown` asymmetry and the
--- one-way shims below are not. Full notice in ../../THIRD-PARTY.md.
+-- Leitnick -- https://github.com/Sleitnick/RbxUtil. Notice in ../../THIRD-PARTY.md.
 
--- Type-only shims over Roblox's remote instances. There is no runtime here:
--- the module returns an empty table and every export is a type. A "typed
--- remote" in this repo is a `::` cast that vanishes at compile time, not a
--- wrapper object -- see the declaration example in this entry's README.
+-- Types only. The module returns an empty table, and a "typed remote" here is a
+-- cast that vanishes at compile time: it documents the contract, it does not
+-- enforce it. Anything reaching a server handler still needs a runtime check.
 --
--- The trade this makes: the compiler believes the cast, so a client can still
--- fire whatever it wants. Types document the contract; they do not enforce it.
--- Anything reaching a server handler still needs a real runtime check.
+-- Do not "fix" the `...unknown` below into `T...`. The client picks what it
+-- sends, including how many arguments, so promising `T...` to a server handler
+-- is a lie the compiler would then confirm. Sending stays typed both ways --
+-- what you send is yours, and a mistake there is your bug, not an attack.
 --
--- Which is why every server-facing member below takes `...unknown` and not
--- `T...`. Trust is asymmetric: the server is reliable, the client is not, so a
--- signature promising `T...` to a server handler is a lie the compiler would
--- then confirm -- you index `payload.itemId` and nothing stops you. `...unknown`
--- is not a weaker type than `T...`, it is the accurate one; the client picks
--- what it sends, including how many arguments.
---
--- Sending stays typed on both sides: FireServer, FireClient and InvokeServer
--- describe what YOU send, and a mistake there is your bug, not an attack.
--- OnServerInvoke keeps its typed RETURN for the same reason.
---
--- DIRECTION. Prefer ToClient or ToServer over the plain RemoteEvent. They are
--- named for the destination, so there is no reading them backwards, and they
--- carry no method for the wrong direction -- so
---
---   BadgeAwarded:FireServer(1)               -- BadgeAwarded is server -> client
---   BadgeAwarded.OnServerEvent:Connect(...)
---
--- stop compiling instead of connecting to something that will never fire. That
--- mistake is silent otherwise: the remote exists, the call typechecks, and
--- nothing ever happens. Prose in a doc comment cannot catch it and neither can
--- a grep over use sites -- an alias (`local b = X.BadgeAwarded`) defeats both.
---
--- See examples/RemoteExample.luau for how to get from `unknown` back to a real
--- type, and for the mistakes this arrangement is supposed to catch.
+-- ../README.md has the reasoning. ../examples/RemoteExample.luau has it as
+-- claims `just check` enforces.
 
 type Signal<T...> = {
     Connect: (self: Signal<T...>, fn: (T...) -> ()) -> RBXScriptConnection,
@@ -50,9 +25,7 @@ type Signal<T...> = {
     Wait: (self: Signal<T...>) -> T...,
 }
 
--- The server always receives the firing player as a prepended argument, so the
--- server-facing signal cannot reuse Signal<T...>. It is instantiated only with
--- `...unknown` -- see the note at the top of the file.
+-- The player is prepended by the engine, so this cannot reuse Signal<T...>.
 type PlayerSignal<T...> = {
     Connect: (self: PlayerSignal<T...>, fn: (player: Player, T...) -> ()) -> RBXScriptConnection,
     ConnectParallel: (self: PlayerSignal<T...>, fn: (player: Player, T...) -> ()) -> RBXScriptConnection,
@@ -67,9 +40,7 @@ export type ToClient<T...> = Instance & {
     FireAllClients: (self: ToClient<T...>, T...) -> (),
 }
 
--- Backed by a RemoteEvent instance, one way only. FireServer is typed because
--- it describes what you send; OnServerEvent is not, because it describes what
--- someone else sent.
+-- Backed by a RemoteEvent instance, one way only.
 export type ToServer<T...> = Instance & {
     FireServer: (self: ToServer<T...>, T...) -> (),
     OnServerEvent: PlayerSignal<...unknown>,
@@ -85,9 +56,8 @@ export type RemoteEvent<T...> = Instance & {
     FireServer: (self: RemoteEvent<T...>, T...) -> (),
 }
 
--- Unreliable remotes are nearly always server -> client (positions, effects), so
--- that is the only direction given a shim. Add the mirror when something needs
--- it rather than before.
+-- Unreliable remotes are nearly always server -> client, so that is the only
+-- direction given a shim. Add the mirror when something needs it.
 export type UnreliableToClient<T...> = Instance & {
     OnClientEvent: Signal<T...>,
     FireClient: (self: UnreliableToClient<T...>, player: Player, T...) -> (),
