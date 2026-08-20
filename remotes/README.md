@@ -224,7 +224,8 @@ better it knows what is really an orphan.
 | `--features-root <dir>` | `features` | Where a bare `FeatureName` argument is looked up |
 | `--schema-suffix <s>` | `RemotesSchema.luau` | Filename suffix that marks a declaration when scanning a directory. Must end in `Schema.luau` unless `--barrel` is given |
 | `--barrel <name>` | derived | Name the generated module outright. One declaration at a time |
-| `--prune` | off | Delete instance files no declaration of the run names |
+| `--prune` | off | Delete instance files no declaration names |
+| `--prune-root <dir>` | `.` | Where the orphan inventory is read from |
 | `--dry` | off | Print what would happen, write nothing |
 
 One thing is fixed rather than configurable: the `export type Remotes` name,
@@ -271,12 +272,16 @@ Remote names become global once the folder is, so two features cannot both
 declare `Ping`. Nothing detects the collision: the second declaration simply
 generates the same file.
 
-`--prune` deletes what **no** declaration of the run names, which is why it
-reads every schema before deleting anything. Pruning one declaration into a
-shared folder would delete the others' instances, so with `--instances-dir` it
-requires a directory target and refuses a single file. For the same reason, a
-single declaration read into a shared folder reports no orphans at all: that run
-does not know what the rest of the folder is for.
+`--prune` deletes what **no declaration names**, anywhere — not what the
+declarations of this run do not name. The two are different sets as soon as one
+folder has two declarations feeding it, and that happens by default whenever two
+declarations are file siblings, no flag involved. So the inventory is rebuilt by
+scanning `--prune-root` (`.` by default) rather than taken from the run, and
+what you generate stays independent of what you prune.
+
+A declaration it cannot read stops the run rather than being skipped: a
+declaration mid-edit claims nothing, everything it owns would read as an orphan,
+and a typo should not cost files.
 
 From a declaration it writes, and overwrites whole, one `.model.json` per
 remote with the class the payload type implies, plus the barrel module your
