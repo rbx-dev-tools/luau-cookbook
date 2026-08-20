@@ -5,6 +5,16 @@ why there are no version numbers.
 
 ## 2026-08-20
 
+- The README gains "From declaration to use": the declaration you write, the
+  command, the four files that come out, and the code that requires the barrel.
+  Every option was documented and the cycle they serve was not, so the entry
+  explained its parts and never showed the whole.
+- `RemoteExample.luau` says what it is. It reads like a usage example, is named
+  like one, and is not one -- it is the sheet of claims `just check` enforces.
+  Its two oddities are now stated rather than left to be puzzled over: the types
+  are redeclared because this repo cannot typecheck a cross-module require, and
+  `(nil :: any) :: T` stands in for an instance the barrel would supply.
+
 - `--instances-dir` and `--instances-path` added, splitting the one question
   `--instances` used to answer into the two it actually was: where the instance
   files land on disk, and how the barrel reaches them in the datamodel. Rojo
