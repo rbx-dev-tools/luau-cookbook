@@ -17,8 +17,8 @@ local RemoteTypes = require(ReplicatedStorage.Libraries.RemoteTypes)
 
 export type Remotes = {
     --[=[
-        Asks the server to buy an item; the server decides whether it can be
-        afforded, the client is only expressing intent.
+        The server decides whether it can be afforded; the client is only
+        expressing intent.
     ]=]
     BuyItem: RemoteTypes.ToServer<string, number>,
     StockChanged: RemoteTypes.ToClient<number>,
