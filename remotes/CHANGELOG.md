@@ -3,6 +3,33 @@
 Dated, newest first. See [../docs/conventions.md](../docs/conventions.md) for
 why there are no version numbers.
 
+## 2026-08-20
+
+- `--instances-dir` and `--instances-path` added, splitting the one question
+  `--instances` used to answer into the two it actually was: where the instance
+  files land on disk, and how the barrel reaches them in the datamodel. Rojo
+  maps one to the other however it likes, so neither can be derived from the
+  other. Collecting every remote into `ReplicatedStorage.Remotes` is now
+  possible; the barrel opens with the `GetService` line it needs.
+- `--prune` now reads every declaration of the run before deleting anything.
+  Pruning per declaration was correct only while each one owned its folder: in
+  a shared folder it saw every other declaration's instances as orphans. It
+  refuses a single-file target when `--instances-dir` is set, for the same
+  reason -- one declaration cannot account for a folder it shares.
+- `--barrel` added, naming the generated module outright instead of deriving it
+  from the declaration. One declaration at a time: pointed at a directory,
+  every barrel would be written over the same file. With it, `--schema-suffix`
+  is no longer required to end in `Schema.luau`, since nothing is derived.
+- `just sourcemap` passes `--include-non-scripts`. Without it the sourcemap
+  described only the scripts, so the generated remote instances were absent
+  from the DataModel `luau-lsp` analyses against.
+
+Known, and not fixed here: `just check` resolves no cross-module require. Every
+example is self-contained for that reason, and a fixture pairing a declaration
+with its generated barrel cannot be typechecked until it is addressed. The
+generator's behaviour was verified by running it against throwaway trees
+instead.
+
 ## 2026-08-19
 
 First entry in the cookbook, lifted from the project it grew in.

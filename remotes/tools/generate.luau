@@ -10,12 +10,21 @@
 --   --dry                   print what would happen, write nothing
 --   --instances <name>      folder for the generated instances, next to the
 --                           declaration (default: Remotes)
+--   --instances-dir <path>  where the instance files go, when that is not next
+--                           to the declaration. Overrides --instances.
+--   --instances-path <expr> how the barrel reaches them in the datamodel
+--                           (default: script.Parent.<instances>). A leading
+--                           service name is resolved with GetService.
 --   --features-root <dir>   where a bare FeatureName is looked up
 --                           (default: features)
 --   --schema-suffix <s>     filename suffix that marks a declaration when
 --                           scanning a directory (default: RemotesSchema.luau).
 --                           Must end in "Schema.luau", because the barrel is
---                           named by dropping that word.
+--                           named by dropping that word -- unless --barrel
+--                           names it outright.
+--   --barrel <name>         name the generated module instead of deriving it.
+--                           Single declaration only: a directory would write
+--                           every barrel over the same file.
 --
 -- `CurrencyRemotesSchema.luau` is written by hand and holds `export type Remotes`.
 -- From it this writes:
@@ -41,6 +50,12 @@
 -- suffix has a default rather than being fixed, and everything about WHERE
 -- things live is an option, so this runs against a tree it did not grow in.
 --
+-- Where things live is two questions, not one, and an early version answered
+-- them with a single option because the two coincide when everything is a
+-- sibling. `--instances-dir` is a filesystem path; `--instances-path` is a
+-- datamodel path. Rojo decides how one maps to the other, and it can map them
+-- any way it likes, so nothing here can derive the second from the first.
+--
 -- The suffix is checked to end in "Schema.luau" rather than being free. Finding
 -- a declaration and naming its barrel are two rules that have to agree, and an
 -- unchecked suffix lets them drift: a file the scan skips still generates fine
@@ -63,8 +78,15 @@ local instancesFolder = "Remotes"
 local featuresRoot = "features"
 local schemaSuffix = "RemotesSchema.luau"
 
+-- No default: absent means "next to the declaration", which is not a path this
+-- can spell until it has read one.
+local instancesDir: string? = nil
+local instancesPath: string? = nil
+local barrelOverride: string? = nil
+
 local USAGE = "usage: lune run generate.luau -- <XRemotesSchema.luau | directory | FeatureName> "
-    .. "[--prune] [--dry] [--instances <name>] [--features-root <dir>] [--schema-suffix <s>]"
+    .. "[--prune] [--dry] [--instances <name>] [--instances-dir <path>] [--instances-path <expr>] "
+    .. "[--features-root <dir>] [--schema-suffix <s>] [--barrel <name>]"
 
 local i = 1
 while i <= #process.args do
@@ -89,6 +111,12 @@ while i <= #process.args do
         dry = true
     elseif arg == "--instances" then
         instancesFolder = value()
+    elseif arg == "--instances-dir" then
+        instancesDir = value()
+    elseif arg == "--instances-path" then
+        instancesPath = value()
+    elseif arg == "--barrel" then
+        barrelOverride = value()
     elseif arg == "--features-root" then
         featuresRoot = value()
     elseif arg == "--schema-suffix" then
@@ -112,10 +140,20 @@ if target == nil then
 end
 
 -- The barrel drops a trailing "Schema" from the declaration's name, so a suffix
--- that does not end in one would make the scan and the naming disagree.
-if string.sub(schemaSuffix, -#"Schema.luau") ~= "Schema.luau" then
+-- that does not end in one would make the scan and the naming disagree. When
+-- --barrel names the module outright nothing is derived, and the rule has
+-- nothing left to protect.
+if barrelOverride == nil and string.sub(schemaSuffix, -#"Schema.luau") ~= "Schema.luau" then
     log.err(`--schema-suffix must end in "Schema.luau", got "{schemaSuffix}"`)
     process.exit(1)
+end
+
+-- Moving the files without saying where they land in the datamodel leaves the
+-- barrel pointing at where they used to be. Rojo may well map them back to the
+-- old place, so this is a warning and not an error -- but it is a mistake far
+-- more often than it is a mapping.
+if instancesDir ~= nil and instancesPath == nil then
+    log.warn("--instances-dir without --instances-path: the barrel still reads script.Parent." .. instancesFolder)
 end
 
 -- 2. What a payload type says about the instance ------------------------------
@@ -165,6 +203,30 @@ local function put(path: string, contents: string)
     table.insert(written, path)
 end
 
+-- Instance files every schema of this run accounts for, per directory. Pruning
+-- reads this once all the schemas have been read, because two schemas may write
+-- into the same directory and neither knows what the other claims.
+local claims: { [string]: { [string]: true } } = {}
+
+--[==[
+    How the barrel reaches the instances, and the line that has to precede it.
+
+    `script.Parent.Remotes` needs nothing. `ReplicatedStorage.Remotes` needs the
+    service fetched first -- indexing `game` directly works but yields to
+    GetService everywhere else in a Roblox codebase, and generated code that
+    does not look like written code invites being rewritten by hand.
+]==]
+local function datamodelAccess(): (string?, string)
+    local path = instancesPath or `script.Parent.{instancesFolder}`
+    local head = string.match(path, "^([%a_][%w_]*)")
+
+    if head == nil or head == "script" or head == "game" then
+        return nil, path
+    end
+
+    return `local {head} = game:GetService("{head}")`, path
+end
+
 local function generateFor(schemaPath: string)
     local dir, schemaName = string.match(schemaPath, "^(.*)[/\\]([^/\\]+)%.luau$")
     if not dir or not schemaName then
@@ -172,8 +234,8 @@ local function generateFor(schemaPath: string)
         return
     end
 
-    -- CurrencyRemotesSchema -> CurrencyRemotes
-    local barrelName = string.gsub(schemaName :: string, "Schema$", "")
+    -- CurrencyRemotesSchema -> CurrencyRemotes, unless --barrel said otherwise.
+    local barrelName = barrelOverride or string.gsub(schemaName :: string, "Schema$", "")
     local fields = luauType.fields(fs.readFile(schemaPath), "Remotes")
 
     if #fields == 0 then
@@ -182,8 +244,9 @@ local function generateFor(schemaPath: string)
     end
 
     -- 3a. The instance files.
-    local instancesDir = `{dir}/{instancesFolder}`
-    local expected: { [string]: true } = {}
+    local targetDir = instancesDir or `{dir}/{instancesFolder}`
+    local expected = claims[targetDir] or {}
+    claims[targetDir] = expected
     local named: { string } = {}
 
     for _, field in fields do
@@ -197,41 +260,34 @@ local function generateFor(schemaPath: string)
         table.insert(named, field.name)
 
         if not dry then
-            fs.writeDir(instancesDir)
+            fs.writeDir(targetDir)
         end
         -- Plain concatenation: an interpolated string would need every brace of
         -- the JSON escaped.
-        put(`{instancesDir}/{field.name}.model.json`, '{\n  "className": "' .. className .. '"\n}\n')
+        put(`{targetDir}/{field.name}.model.json`, '{\n  "className": "' .. className .. '"\n}\n')
     end
 
-    -- 3b. Instances the schema no longer names.
-    if fs.metadata(instancesDir).exists then
-        for _, entry in fs.readDir(instancesDir) do
-            if expected[entry] or not string.match(entry, "%.model%.json$") then
-                continue
-            end
+    -- 3b. The barrel, in full.
+    local prelude, access = datamodelAccess()
 
-            local path = `{instancesDir}/{entry}`
-            table.insert(orphans, path)
-            if prune and not dry then
-                fs.removeFile(path)
-            end
-        end
-    end
-
-    -- 3c. The barrel, in full.
     local lines = {
         `-- Generated from {schemaName}.luau by luau-cookbook/remotes -- do not edit.`,
         `--`,
         `-- Add or remove a remote in {schemaName}.luau, then re-run the generator.`,
         ``,
-        `local {schemaName} = require(script.Parent.{schemaName})`,
-        ``,
-        `local remotes: {schemaName}.Remotes = ` .. "{",
     }
 
+    if prelude then
+        table.insert(lines, prelude)
+        table.insert(lines, ``)
+    end
+
+    table.insert(lines, `local {schemaName} = require(script.Parent.{schemaName})`)
+    table.insert(lines, ``)
+    table.insert(lines, `local remotes: {schemaName}.Remotes = ` .. "{")
+
     for _, name in named do
-        table.insert(lines, `    {name} = script.Parent.{instancesFolder}.{name} :: any,`)
+        table.insert(lines, `    {name} = {access}.{name} :: any,`)
     end
 
     table.insert(lines, "}")
@@ -281,6 +337,25 @@ end
 
 local schemas: { string } = {}
 
+-- One name cannot serve several declarations: each would write the barrel over
+-- the last, and the survivor would be whichever the walk reached last.
+if barrelOverride ~= nil and metadata.kind == "dir" then
+    log.err("--barrel names a single module, so it needs a single declaration, not a directory")
+    process.exit(1)
+end
+
+-- A shared directory is only ever fully accounted for by a run that reads every
+-- declaration feeding it. Reading one and pruning would delete the others'
+-- instances -- the very thing the grouped pass exists to prevent, reintroduced
+-- by aiming too narrowly.
+if prune and instancesDir ~= nil and metadata.kind ~= "dir" then
+    log.err(
+        "--prune with --instances-dir needs a directory target, so every declaration "
+            .. "writing into it is read first"
+    )
+    process.exit(1)
+end
+
 if metadata.kind == "dir" then
     findSchemas(targetPath, schemas)
     if #schemas == 0 then
@@ -295,6 +370,35 @@ log.step(`reading {#schemas} schema{if #schemas == 1 then "" else "s"}`)
 
 for _, path in schemas do
     generateFor(path)
+end
+
+-- 4b. Instances no schema of this run accounts for.
+--
+-- After the loop, never inside it: with a shared directory, a per-schema pass
+-- sees every other schema's instances as orphans and deletes them. What makes a
+-- file an orphan is that NO declaration names it.
+--
+-- Skipped entirely when one declaration was read into a directory it may share,
+-- because then the run knows nothing about the rest of the directory and every
+-- name in it would be reported as an orphan it is not.
+local accountedFor = metadata.kind == "dir" or instancesDir == nil
+
+for directory, expected in if accountedFor then claims else {} do
+    if not fs.metadata(directory).exists then
+        continue
+    end
+
+    for _, entry in fs.readDir(directory) do
+        if expected[entry] or not string.match(entry, "%.model%.json$") then
+            continue
+        end
+
+        local path = `{directory}/{entry}`
+        table.insert(orphans, path)
+        if prune and not dry then
+            fs.removeFile(path)
+        end
+    end
 end
 
 -- 5. Report -------------------------------------------------------------------
