@@ -5,6 +5,27 @@ why there are no version numbers.
 
 ## 2026-08-20
 
+- `--prune` rebuilt on a complete inventory. It deleted what the declarations of
+  the *run* did not name, which is not the same set as what no declaration names
+  the moment one folder has two declarations feeding it -- and that is the
+  default whenever two are file siblings. Pointing it at one feature deleted
+  another's instances; so did pointing it at one file among siblings. The
+  inventory is now scanned from `--prune-root` (`.`), independent of what is
+  being generated.
+- Refuses to prune when a declaration cannot be read, rather than treating
+  everything it owns as an orphan. A rename or a mid-edit file cost files
+  before.
+- Refuses a barrel name equal to the declaration's, which overwrote the one file
+  nobody generates and reported it as an update. Reachable through `--barrel`,
+  and without it through a declaration whose name has no trailing `Schema`.
+- Refuses an `--instances-path` whose head is not a service. It became
+  `game:GetService("Remotes")`, which threw the first time the barrel was
+  required, in game, far from the generator.
+- Warns when two declarations feeding one folder claim the same remote name.
+  The second overwrote the first silently, and its class could differ.
+- Directory keys are normalised, without which `./x/Remotes` and `x/Remotes`
+  were different entries and the inventory lookup missed.
+
 - `examples/` gains a real declaration and everything generated from it:
   `ShopRemotesSchema.luau`, the `ShopRemotes.luau` barrel, and four
   `Remotes/*.model.json`. The entry described the cycle in prose and shipped no

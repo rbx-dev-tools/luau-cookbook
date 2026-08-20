@@ -14,6 +14,7 @@
 --   --features-root <dir>   where a bare FeatureName is looked up (features)
 --   --schema-suffix <s>     what marks a declaration (RemotesSchema.luau)
 --   --barrel <name>         name the module instead of deriving it
+--   --prune-root <dir>      where the orphan inventory is read from (.)
 --
 -- Each option's constraints are enforced below with an error that says what it
 -- wanted; ../README.md says why they exist.
@@ -54,9 +55,14 @@ local instancesDir: string? = nil
 local instancesPath: string? = nil
 local barrelOverride: string? = nil
 
+-- Where the orphan inventory is read from. "." because the question is what no
+-- declaration ANYWHERE names, and a narrower root is how you delete a sibling's
+-- instances by accident.
+local pruneRoot = "."
+
 local USAGE = "usage: lune run generate.luau -- <XRemotesSchema.luau | directory | FeatureName> "
     .. "[--prune] [--dry] [--instances <name>] [--instances-dir <path>] [--instances-path <expr>] "
-    .. "[--features-root <dir>] [--schema-suffix <s>] [--barrel <name>]"
+    .. "[--features-root <dir>] [--schema-suffix <s>] [--barrel <name>] [--prune-root <dir>]"
 
 local i = 1
 while i <= #process.args do
@@ -87,6 +93,8 @@ while i <= #process.args do
         instancesPath = value()
     elseif arg == "--barrel" then
         barrelOverride = value()
+    elseif arg == "--prune-root" then
+        pruneRoot = value()
     elseif arg == "--features-root" then
         featuresRoot = value()
     elseif arg == "--schema-suffix" then
@@ -186,6 +194,21 @@ local claims: { [string]: { [string]: true } } = {}
     GetService everywhere else in a Roblox codebase, and generated code that
     does not look like written code invites being rewritten by hand.
 ]==]
+local SERVICES: { [string]: true } = {
+    ReplicatedStorage = true,
+    ReplicatedFirst = true,
+    ServerScriptService = true,
+    ServerStorage = true,
+    StarterGui = true,
+    StarterPack = true,
+    StarterPlayer = true,
+    Lighting = true,
+    SoundService = true,
+    Players = true,
+    Workspace = true,
+    TextChatService = true,
+}
+
 local function datamodelAccess(): (string?, string)
     local path = instancesPath or `script.Parent.{instancesFolder}`
     local head = string.match(path, "^([%a_][%w_]*)")
@@ -194,7 +217,35 @@ local function datamodelAccess(): (string?, string)
         return nil, path
     end
 
+    -- An unrecognised head would become `game:GetService("Remotes")`, which
+    -- throws the first time the barrel is required -- in game, far from here.
+    -- Refusing costs a message now instead of a runtime error later.
+    if not SERVICES[head] then
+        log.err(
+            `--instances-path starts with "{head}", which is not a service. `
+                .. `Use a service name, or start the path with script.`
+        )
+        process.exit(1)
+    end
+
     return `local {head} = game:GetService("{head}")`, path
+end
+
+--[==[
+    One directory, one spelling.
+
+    `./sib/Remotes` and `sib/Remotes` are the same folder and different table
+    keys, and the inventory is looked up by key. Without this the lookup misses,
+    the run falls back to its own narrow claim set, and a sibling's instances
+    read as orphans -- the exact deletion the inventory exists to prevent.
+]==]
+local function normalise(path: string): string
+    local out = string.gsub(path, "\\", "/")
+    out = string.gsub(out, "//+", "/")
+    while string.sub(out, 1, 2) == "./" do
+        out = string.sub(out, 3)
+    end
+    return out
 end
 
 local function generateFor(schemaPath: string)
@@ -206,6 +257,18 @@ local function generateFor(schemaPath: string)
 
     -- CurrencyRemotesSchema -> CurrencyRemotes, unless --barrel said otherwise.
     local barrelName = barrelOverride or string.gsub(schemaName :: string, "Schema$", "")
+
+    -- The barrel is written whole, so a name equal to the declaration's would
+    -- overwrite the one file nobody generates -- silently, reported as an
+    -- update. Reachable through --barrel, and also without it when a name has
+    -- no trailing "Schema" for the gsub to drop.
+    if barrelName == schemaName then
+        log.err(
+            `{schemaPath}: the barrel would be named {barrelName}.luau and overwrite `
+                .. `the declaration. Name the declaration <Something>Schema.luau, or pass --barrel.`
+        )
+        process.exit(1)
+    end
     local fields = luauType.fields(fs.readFile(schemaPath), "Remotes")
 
     if #fields == 0 then
@@ -214,7 +277,7 @@ local function generateFor(schemaPath: string)
     end
 
     -- 3a. The instance files.
-    local targetDir = instancesDir or `{dir}/{instancesFolder}`
+    local targetDir = normalise(instancesDir or `{dir}/{instancesFolder}`)
     local expected = claims[targetDir] or {}
     claims[targetDir] = expected
     local named: { string } = {}
@@ -226,7 +289,16 @@ local function generateFor(schemaPath: string)
             continue
         end
 
-        expected[`{field.name}.model.json`] = true
+        local entry = `{field.name}.model.json`
+        if expected[entry] then
+            -- Two declarations feeding one folder and naming the same remote:
+            -- the second put wins, and its className may differ from the first.
+            log.warn(
+                `{schemaPath}: "{field.name}" is already claimed in {targetDir} by another `
+                    .. `declaration -- remote names are global once the folder is`
+            )
+        end
+        expected[entry] = true
         table.insert(named, field.name)
 
         if not dry then
@@ -273,7 +345,9 @@ end
 local function findSchemas(root: string, into: { string })
     for _, entry in fs.readDir(root) do
         local path = `{root}/{entry}`
-        if fs.metadata(path).kind == "dir" then
+        if string.sub(entry, 1, 1) == "." then
+            continue
+        elseif fs.metadata(path).kind == "dir" then
             findSchemas(path, into)
         elseif #entry > #schemaSuffix and string.sub(entry, -#schemaSuffix) == schemaSuffix then
             table.insert(into, path)
@@ -314,18 +388,6 @@ if barrelOverride ~= nil and metadata.kind == "dir" then
     process.exit(1)
 end
 
--- A shared directory is only ever fully accounted for by a run that reads every
--- declaration feeding it. Reading one and pruning would delete the others'
--- instances -- the very thing the grouped pass exists to prevent, reintroduced
--- by aiming too narrowly.
-if prune and instancesDir ~= nil and metadata.kind ~= "dir" then
-    log.err(
-        "--prune with --instances-dir needs a directory target, so every declaration "
-            .. "writing into it is read first"
-    )
-    process.exit(1)
-end
-
 if metadata.kind == "dir" then
     findSchemas(targetPath, schemas)
     if #schemas == 0 then
@@ -342,24 +404,79 @@ for _, path in schemas do
     generateFor(path)
 end
 
--- 4b. Instances no schema of this run accounts for.
+-- 4b. Instances no declaration accounts for.
 --
--- After the loop, never inside it: with a shared directory, a per-schema pass
--- sees every other schema's instances as orphans and deletes them. What makes a
--- file an orphan is that NO declaration names it.
---
--- Skipped entirely when one declaration was read into a directory it may share,
--- because then the run knows nothing about the rest of the directory and every
--- name in it would be reported as an orphan it is not.
-local accountedFor = metadata.kind == "dir" or instancesDir == nil
+-- What makes a file an orphan is that NO declaration names it -- not that the
+-- declarations this run happened to generate for do not. Those are different
+-- sets the moment two declarations share an instances folder, and a folder is
+-- shared by default whenever two declarations are file siblings. Pruning on the
+-- narrower set deletes another feature's remotes, which is the failure this
+-- whole arrangement exists to prevent, so the inventory is rebuilt from every
+-- declaration under --prune-root rather than from the run.
+local function claimedBy(schemaPath: string): (string?, { [string]: true }?)
+    local dir = string.match(schemaPath, "^(.*)[/][^/]+%.luau$")
+    if not dir then
+        return nil, nil
+    end
 
-for directory, expected in if accountedFor then claims else {} do
+    local fields = luauType.fields(fs.readFile(schemaPath), "Remotes")
+    if #fields == 0 then
+        return nil, nil
+    end
+
+    local set: { [string]: true } = {}
+    for _, field in fields do
+        if classNameOf(field.luauType) then
+            set[`{field.name}.model.json`] = true
+        end
+    end
+    return normalise(instancesDir or `{dir}/{instancesFolder}`), set
+end
+
+local inventory: { [string]: { [string]: true } } = {}
+local unreadable: { string } = {}
+
+local everySchema: { string } = {}
+if fs.metadata(pruneRoot).exists then
+    findSchemas(pruneRoot, everySchema)
+end
+
+for _, path in everySchema do
+    local directory, set = claimedBy(path)
+    if not directory or not set then
+        table.insert(unreadable, path)
+        continue
+    end
+
+    local held = inventory[directory] or {}
+    inventory[directory] = held
+    for entry in set do
+        held[entry] = true
+    end
+end
+
+-- A declaration mid-edit claims nothing, and everything it owns would read as
+-- an orphan. Deleting on that basis costs files for a typo, so the run stops
+-- instead. Reporting is safe and still happens.
+if prune and #unreadable > 0 then
+    for _, path in unreadable do
+        log.err(`cannot read {path}`)
+    end
+    log.err(
+        `refusing to prune: {#unreadable} declaration(s) unreadable, so the inventory `
+            .. `is incomplete and an orphan cannot be told from a file they own`
+    )
+    process.exit(1)
+end
+
+for directory in claims do
     if not fs.metadata(directory).exists then
         continue
     end
 
+    local held = inventory[directory] or claims[directory]
     for _, entry in fs.readDir(directory) do
-        if expected[entry] or not string.match(entry, "%.model%.json$") then
+        if held[entry] or not string.match(entry, "%.model%.json$") then
             continue
         end
 
