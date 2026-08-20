@@ -3,6 +3,11 @@
 -- Local edits are expected. Check the changelog before copying a newer
 -- version over one you have modified.
 
+-- Derived from the `typed-remote` module of RbxUtil, MIT, (c) 2025 Stephen
+-- Leitnick -- https://github.com/Sleitnick/RbxUtil. The Signal and PlayerSignal
+-- shapes and the structural approach are his; the `...unknown` asymmetry and the
+-- one-way shims below are not. Full notice in ../../THIRD-PARTY.md.
+
 -- Type-only shims over Roblox's remote instances. There is no runtime here:
 -- the module returns an empty table and every export is a type. A "typed
 -- remote" in this repo is a `::` cast that vanishes at compile time, not a

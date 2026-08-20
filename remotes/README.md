@@ -32,6 +32,14 @@ Using one the wrong way round stops compiling instead of silently connecting to
 something that will never fire. That mistake is invisible otherwise: the remote
 exists, the call typechecks, and nothing happens.
 
+## Where this comes from
+
+The structural approach, and the `Signal` / `PlayerSignal` shapes, are taken
+from the `typed-remote` module of [RbxUtil](https://github.com/Sleitnick/RbxUtil)
+by Stephen Leitnick, MIT licensed. Everything below about `...unknown` and about
+naming remotes for their destination is this entry's departure from it, not his
+design. The notice is in [../THIRD-PARTY.md](../THIRD-PARTY.md).
+
 ## What this is not
 
 Blink, Zap and ByteNet solve a different problem. They own the wire: a schema
