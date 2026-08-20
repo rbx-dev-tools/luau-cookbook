@@ -65,7 +65,8 @@ in the build. It is not worth it when the wire format is your bottleneck.
 | `game/RemoteTypes.luau` | Into the place, next to your other shared libraries |
 | `tools/generate.luau` | Stays on your machine, run with Lune |
 | `tools/lib/*` | Stays on your machine, required by the generator |
-| `examples/*` | Stays in this repo, analyzed by `just check` |
+| `examples/RemoteExample.luau` | Stays in this repo, analyzed by `just check` |
+| `examples/ShopRemotes*.luau`, `examples/Remotes/` | Stays in this repo. A declaration and everything the generator wrote from it, committed so the cycle is readable without running anything |
 
 ## Using the types
 
@@ -92,7 +93,8 @@ out has exactly the promised fields and nothing the client smuggled in.
 ## From declaration to use
 
 The whole cycle, on one feature. You write one file; the generator writes the
-other three.
+other three. All four are in `examples/`, so nothing below is a transcription:
+it is what is in the repository.
 
 ```
 features/Shop/

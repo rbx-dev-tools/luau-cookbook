@@ -5,6 +5,14 @@ why there are no version numbers.
 
 ## 2026-08-20
 
+- `examples/` gains a real declaration and everything generated from it:
+  `ShopRemotesSchema.luau`, the `ShopRemotes.luau` barrel, and four
+  `Remotes/*.model.json`. The entry described the cycle in prose and shipped no
+  file you could open, which made "where is the schema" a fair question with no
+  answer. `just check` ignores the pair: the barrel requires its declaration,
+  and no cross-module require resolves against this harness. An unchecked
+  example beats an absent one, and the gap is the argument for fixing that.
+
 - The README gains "From declaration to use": the declaration you write, the
   command, the four files that come out, and the code that requires the barrel.
   Every option was documented and the cycle they serve was not, so the entry
