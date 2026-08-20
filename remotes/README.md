@@ -97,25 +97,17 @@ in the build. It is not worth it when the wire format is your bottleneck.
 | `tools/generate.luau` | Stays on your machine, run with Lune |
 | `tools/lib/*` | Stays on your machine, required by the generator |
 | `examples/RemoteExample.luau` | Stays in this repo, analyzed by `just check` |
-| `examples/ShopRemotes*.luau`, `examples/Remotes/` | Stays in this repo. A declaration and everything the generator wrote from it, committed so the cycle is readable without running anything |
+| `examples/ShopRemotes*.luau`, `examples/Remotes/` | Stays in this repo. A declaration and everything the generator wrote from it, committed so the cycle is readable without running anything. Not analyzed: the barrel requires its declaration, and no cross-module require resolves against this harness |
 
 ## Using the types
 
-Copy `game/RemoteTypes.luau` into your shared library folder. Declare your
-remotes in ordinary Luau, one type per feature:
+Copy `game/RemoteTypes.luau` into your shared library folder, and declare one
+type per feature as shown at the top of this page. A `--[=[ ]=]` comment on a
+field becomes hover text on every use site, which is most of what you get for
+free here.
 
-```lua
-export type Remotes = {
-    --[=[
-        The server decides whether it can be afforded; the client is only
-        expressing intent.
-    ]=]
-    BuyItem: RemoteTypes.ToServer<string, number>,
-    BadgeAwarded: RemoteTypes.ToClient<number>,
-}
-```
-
-Then read `examples/RemoteExample.luau`, which is the part that matters. It
+Then read `examples/RemoteExample.luau`. It is not a usage example -- it is the
+sheet of claims `just check` enforces -- and it is the part that matters. It
 shows how to get from `unknown` back to a real type: `typeof` guards for
 scalars, and for tables a validator with the honest signature
 `(unknown) -> T?` that rebuilds the value rather than casting it, so what comes
@@ -243,9 +235,10 @@ lune run tools/generate.luau -- Shop --features-root modules --instances Net
 lune run tools/generate.luau -- features --instances-dir shared/Remotes --instances-path ReplicatedStorage.Remotes
 ```
 
-Run it over a directory rather than file by file whenever you can: `--prune`
-only deletes what no declaration of the run names, so the wider the run, the
-better it knows what is really an orphan.
+What you point at decides what is generated, and nothing else. `--prune` reads
+its own inventory of every declaration under `--prune-root`, so generating one
+feature and pruning safely are not in tension -- see "Putting the remotes
+somewhere shared".
 
 | Option | Default | What it is |
 |---|---|---|
@@ -285,7 +278,7 @@ derived from the other — which is why one option cannot do both, and why
 `--instances-dir` on its own warns rather than guessing.
 
 ```sh
-lune run tools/generate.luau -- features     --instances-dir src/shared/Remotes     --instances-path ReplicatedStorage.Remotes
+lune run tools/generate.luau -- features \n    --instances-dir src/shared/Remotes \n    --instances-path ReplicatedStorage.Remotes
 ```
 
 Every declaration under `features/` then writes its instances into one folder,
@@ -300,8 +293,9 @@ local remotes: ShopRemotesSchema.Remotes = {
 ```
 
 Remote names become global once the folder is, so two features cannot both
-declare `Ping`. Nothing detects the collision: the second declaration simply
-generates the same file.
+declare `Ping`. The generator warns when a second declaration claims a name a
+first already took, but it cannot refuse: it writes the file either way, and the
+last class written wins.
 
 `--prune` deletes what **no declaration names**, anywhere — not what the
 declarations of this run do not name. The two are different sets as soon as one

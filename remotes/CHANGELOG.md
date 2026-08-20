@@ -5,6 +5,13 @@ why there are no version numbers.
 
 ## 2026-08-20
 
+- Documentation reread end to end, now that the repository is public. Two
+  paragraphs of the entry README described `--prune` in opposite terms, one of
+  them the behaviour that was replaced the same day; the collision warning was
+  documented as not existing; a shell block had lost its line continuations and
+  read as one run-on command; and the root README claimed a CI that does not
+  exist and an example set that is checked, when the newest example is not.
+
 - The entry README opens with code. It opened with twenty-eight lines of
   argument, and the first line of code was three screens down: a reader had to
   take the reasoning on trust before seeing what using it looks like. The why is

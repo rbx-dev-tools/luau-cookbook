@@ -26,7 +26,7 @@ The cost of copying is drift, and drift is what the conventions in
 [`docs/conventions.md`](docs/conventions.md) exist to fight. In short: every
 copyable file carries a provenance stamp saying where it came from and when,
 every entry keeps its own changelog, and every claim an entry makes about the
-type system is written as an example the CI typechecks.
+type system is written as an example `just check` typechecks.
 
 ## Entries
 
@@ -43,12 +43,21 @@ just sourcemap    # the harness sourcemap luau-lsp needs
 just check        # typecheck, lint, format check
 ```
 
-`just check` is the whole safety net. An entry that stops typechecking is an
-entry whose documentation has started lying.
+`just check` is the whole safety net, and you have to run it: there is no CI
+here yet. An entry that stops typechecking is an entry whose documentation has
+started lying.
+
+It does not catch everything. It checks type-level claims, which is most of what
+these entries assert, and it checks nothing about the tools under `*/tools/` --
+those run on Lune, whose standard library the Roblox definitions know nothing
+about. A generator can break without a single check going red.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+Some entries derive from other people's work; those debts and their notices are
+in [THIRD-PARTY.md](THIRD-PARTY.md).
 
 ## Trademark
 
