@@ -39,10 +39,19 @@ type RemoteFunction<T..., R...> = Instance & {
     OnServerInvoke: (player: Player, ...unknown) -> R...,
 }
 
+-- One-way shims. The whole difference is what is ABSENT: no FireServer, no
+-- OnServerEvent. Section 6 has the proof.
+type ToClient<T...> = Instance & {
+    OnClientEvent: Signal<T...>,
+    FireClient: (self: ToClient<T...>, player: Player, T...) -> (),
+    FireAllClients: (self: ToClient<T...>, T...) -> (),
+}
+
 -- Stand-ins for real instances. `(nil :: any) :: T` is the same cast the
 -- generated barrel makes on a real one.
 local BuyItemRemote = (nil :: any) :: RemoteEvent<string, number>
 local GetBalanceRemote = (nil :: any) :: RemoteFunction<(), (number)>
+local BadgeAwarded = (nil :: any) :: ToClient<number>
 
 -- 2. Reading an untrusted argument -------------------------------------------
 
@@ -138,6 +147,13 @@ end)
 
 BuyItemRemote:FireServer("sword", 1)
 
+-- A one-way remote used the way its name reads. Section 6 has the mirror
+-- image, which does not compile.
+BadgeAwarded.OnClientEvent:Connect(function(badgeId)
+    local id: number = badgeId
+    print(id)
+end)
+
 local balance: number = GetBalanceRemote:InvokeServer()
 print(balance)
 
@@ -171,6 +187,19 @@ print(balance)
 -- end
 --
 -- Expected: type mismatch on the return, 'string' where 'number' was declared
+
+-- Using a one-way remote in the direction it does not go. This is the mistake
+-- the ToClient/ToServer naming exists to catch, and it is silent otherwise: the
+-- instance exists, a bidirectional type would accept both lines, and nothing
+-- ever fires.
+--
+-- BadgeAwarded:FireServer(1)
+--
+-- Expected: does not have key 'FireServer'
+--
+-- BadgeAwarded.OnServerEvent:Connect(function() end)
+--
+-- Expected: does not have key 'OnServerEvent'
 
 -- Firing with the wrong payload from the client:
 --
