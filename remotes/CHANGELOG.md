@@ -3,6 +3,26 @@
 Dated, newest first. See [../docs/conventions.md](../docs/conventions.md) for
 why there are no version numbers.
 
+## 2026-08-27
+
+- The declaration example and the README both wrote the remote function as
+  `RemoteFunction<(), number>`, which does not compile. The type takes two type
+  packs; the explicit `()` opens a pack, and a bare type cannot follow one, so
+  Luau answers `Type parameters must come before type pack parameters`. The
+  return is parenthesised now, `RemoteFunction<(), (number)>`, which is how
+  `RemoteExample.luau` had it all along. The README is the copied-from file, so
+  the error was waiting for the first reader to declare a remote function.
+
+- It survived because neither file is checked: `just check` ignores
+  `examples/Shop*.luau`, and no README is analysed at all. The ignore exists
+  because cross-module requires do not resolve against this harness, and that
+  turns out to be one path away from working. `rojo sourcemap` writes `$path`
+  entries relative to the project file, so `.harness/default.project.json`
+  yields `../remotes/...`, and `luau-lsp` resolves those against the working
+  directory instead, landing one directory above the repository. With the
+  entries rooted at the repository, the declaration and its generated barrel
+  typecheck clean, and the broken form above is reported. Not fixed here.
+
 ## 2026-08-20
 
 - Documentation reread end to end, now that the repository is public. Two

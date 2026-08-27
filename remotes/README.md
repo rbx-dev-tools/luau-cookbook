@@ -130,7 +130,7 @@ local RemoteTypes = require(ReplicatedStorage.Libraries.RemoteTypes)
 export type Remotes = {
     BuyItem: RemoteTypes.ToServer<string, number>,
     StockChanged: RemoteTypes.ToClient<number>,
-    GetBalance: RemoteTypes.RemoteFunction<(), number>,
+    GetBalance: RemoteTypes.RemoteFunction<(), (number)>,
 }
 
 return {}
